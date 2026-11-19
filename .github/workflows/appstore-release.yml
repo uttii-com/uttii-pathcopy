@@ -1,0 +1,134 @@
+name: Build, sign and publish Nextcloud app
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: appstore-\${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build_and_publish:
+    # Pre-releases are excluded until a separate pre-release policy is defined.
+    if: \${{ github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false }}
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 45
+    env:
+      APP_ID: pathcopy
+
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate app ID and version
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          from xml.etree import ElementTree as ET
+
+          root = ET.parse("appinfo/info.xml").getroot()
+          app_id = root.findtext("id")
+          version = root.findtext("version")
+          if app_id != os.environ["APP_ID"] or not version:
+              raise SystemExit(f"Unexpected app id/version: {app_id!r}, {version!r}")
+          if os.environ["GITHUB_EVENT_NAME"] == "release":
+              tag = os.environ["GITHUB_REF_NAME"]
+              if tag != f"v{version}":
+                  raise SystemExit(f"Release tag {tag!r} must match info.xml v{version}")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+              f.write(f"APP_VERSION={version}\n")
+          PY
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.3'
+          extensions: mbstring,gd,curl,zip,xml,intl,pdo_sqlite
+          coverage: none
+
+      - name: Prepare application package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "build/staging/$APP_ID"
+          # These are the production files currently used by uttii-PathCopy.
+          for path in appinfo css img js lib templates LICENSE README.md CHANGELOG.md; do
+            if [[ -e "$path" ]]; then
+              cp -a "$path" "build/staging/$APP_ID/"
+            fi
+          done
+          test -s "build/staging/$APP_ID/appinfo/info.xml"
+          rm -f "build/staging/$APP_ID/appinfo/signature.json"
+
+      - name: Download verified Nextcloud server for signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://download.nextcloud.com/server/releases/latest-35.zip"
+          curl --fail --location --retry 3 --silent --show-error "$url" -o nextcloud.zip
+          curl --fail --location --retry 3 --silent --show-error "$url.sha256" -o nextcloud.zip.sha256
+          checksum="$(awk '{print $1}' nextcloud.zip.sha256)"
+          printf '%s  %s\n' "$checksum" nextcloud.zip | sha256sum --check -
+          unzip -q nextcloud.zip
+          test -f nextcloud/occ
+
+      - name: Sign application files and create archive
+        shell: bash
+        env:
+          APP_PRIVATE_KEY: \${{ secrets.APP_PRIVATE_KEY }}
+          APP_PUBLIC_CRT: \${{ secrets.APP_PUBLIC_CRT }}
+        run: |
+          set -euo pipefail
+          test -n "$APP_PRIVATE_KEY"
+          test -n "$APP_PUBLIC_CRT"
+          sign_dir="$RUNNER_TEMP/nextcloud-sign"
+          install -d -m 700 "$sign_dir"
+          trap 'rm -f "$sign_dir/private.pem" "$sign_dir/certificate.pem"' EXIT
+          printf '%s\n' "$APP_PRIVATE_KEY" > "$sign_dir/private.pem"
+          printf '%s\n' "$APP_PUBLIC_CRT" > "$sign_dir/certificate.pem"
+          chmod 600 "$sign_dir/private.pem" "$sign_dir/certificate.pem"
+
+          openssl pkey -in "$sign_dir/private.pem" -pubout -outform DER > "$sign_dir/key.pub"
+          openssl x509 -in "$sign_dir/certificate.pem" -pubkey -noout |
+            openssl pkey -pubin -outform DER > "$sign_dir/cert.pub"
+          cmp "$sign_dir/key.pub" "$sign_dir/cert.pub"
+
+          php nextcloud/occ integrity:sign-app \
+            --privateKey="$sign_dir/private.pem" \
+            --certificate="$sign_dir/certificate.pem" \
+            --path="$GITHUB_WORKSPACE/build/staging/$APP_ID"
+
+          test -s "build/staging/$APP_ID/appinfo/signature.json"
+          tar -czf "build/$APP_ID-v$APP_VERSION.tar.gz" -C build/staging "$APP_ID"
+          tar -tzf "build/$APP_ID-v$APP_VERSION.tar.gz" |
+            grep -q "^$APP_ID/appinfo/signature.json$"
+
+      - name: Attach signed archive to GitHub Release
+        if: \${{ github.event_name == 'release' }}
+        id: attach
+        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # v2.11.5
+        with:
+          repo_token: \${{ secrets.GITHUB_TOKEN }}
+          file: build/pathcopy-v\${{ env.APP_VERSION }}.tar.gz
+          asset_name: pathcopy-v\${{ env.APP_VERSION }}.tar.gz
+          tag: \${{ github.event.release.tag_name }}
+          overwrite: true
+
+      - name: Publish to Nextcloud App Store
+        if: \${{ github.event_name == 'release' }}
+        uses: nextcloud-libraries/nextcloud-appstore-push-action@a011fe619bcf6e77ddebc96f9908e1af4071b9c1 # v1.0.3
+        with:
+          app_name: \${{ env.APP_ID }}
+          appstore_token: \${{ secrets.APPSTORE_TOKEN }}
+          download_url: \${{ steps.attach.outputs.browser_download_url }}
+          app_private_key: \${{ secrets.APP_PRIVATE_KEY }}
+          nightly: false
