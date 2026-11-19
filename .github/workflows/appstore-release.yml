@@ -9,13 +9,13 @@ permissions:
   contents: write
 
 concurrency:
-  group: appstore-\${{ github.ref }}
+  group: appstore-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   build_and_publish:
     # Pre-releases are excluded until a separate pre-release policy is defined.
-    if: \${{ github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false }}
     runs-on: ubuntu-latest
     environment: release
     timeout-minutes: 45
@@ -84,8 +84,8 @@ jobs:
       - name: Sign application files and create archive
         shell: bash
         env:
-          APP_PRIVATE_KEY: \${{ secrets.APP_PRIVATE_KEY }}
-          APP_PUBLIC_CRT: \${{ secrets.APP_PUBLIC_CRT }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          APP_PUBLIC_CRT: ${{ secrets.APP_PUBLIC_CRT }}
         run: |
           set -euo pipefail
           test -n "$APP_PRIVATE_KEY"
@@ -113,22 +113,21 @@ jobs:
             grep -q "^$APP_ID/appinfo/signature.json$"
 
       - name: Attach signed archive to GitHub Release
-        if: \${{ github.event_name == 'release' }}
+        if: ${{ github.event_name == 'release' }}
         id: attach
         uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # v2.11.5
         with:
-          repo_token: \${{ secrets.GITHUB_TOKEN }}
-          file: build/pathcopy-v\${{ env.APP_VERSION }}.tar.gz
-          asset_name: pathcopy-v\${{ env.APP_VERSION }}.tar.gz
-          tag: \${{ github.event.release.tag_name }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: build/pathcopy-v${{ env.APP_VERSION }}.tar.gz
+          asset_name: pathcopy-v${{ env.APP_VERSION }}.tar.gz
+          tag: ${{ github.event.release.tag_name }}
           overwrite: true
 
       - name: Publish to Nextcloud App Store
-        if: \${{ github.event_name == 'release' }}
+        if: ${{ github.event_name == 'release' }}
         uses: nextcloud-libraries/nextcloud-appstore-push-action@a011fe619bcf6e77ddebc96f9908e1af4071b9c1 # v1.0.3
         with:
-          app_name: \${{ env.APP_ID }}
-          appstore_token: \${{ secrets.APPSTORE_TOKEN }}
-          download_url: \${{ steps.attach.outputs.browser_download_url }}
-          app_private_key: \${{ secrets.APP_PRIVATE_KEY }}
-          nightly: false
+          app_name: ${{ env.APP_ID }}
+          appstore_token: ${{ secrets.APPSTORE_TOKEN }}
+          download_url: ${{ steps.attach.outputs.browser_download_url }}
+          app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
