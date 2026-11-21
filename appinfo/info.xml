@@ -1,0 +1,37 @@
+<?xml version='1.0' encoding='utf-8'?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+    <id>pathcopy</id>
+    <name>uttii-PathCopy</name>
+    <summary lang="en">Copy internal Nextcloud paths of files and folders to the clipboard in one click.</summary>
+    <summary lang="ja">ファイルやフォルダの Nextcloud 内部パスをワンクリックでコピー。</summary>
+    <description lang="en">Stop typing long folder hierarchies manually when sharing file locations with your team. **uttii-PathCopy** adds a **Copy path** action directly to the Nextcloud Files context menu.
+
+- **Internal Path Only**: Copies clean internal Nextcloud paths (e.g. `/Documents/report.pdf`), not share links or WebDAV URLs.
+- **Batch Copy**: Select multiple files or folders to copy all paths at once, separated by newlines.
+- **Mobile &amp; Browser Ready**: Combines modern Clipboard API with an automatic fallback for reliable copying on desktop and mobile browsers.
+- **Instant Feedback &amp; Bilingual UI**: Shows the copied path in a toast notification and supports Japanese (default) and English in Personal Settings.</description>
+    <description lang="ja">チームへの共有時に長いフォルダ階層を手入力する手間をなくします。**uttii-PathCopy** は、Nextcloud Files の右クリックメニューに **「パスをコピー」** を追加します。
+
+- **内部パスを正確にコピー**：共有 URL や WebDAV URL ではなく、Nextcloud 内のパス（例: `/Documents/report.pdf`）をコピーします。
+- **複数選択の一括コピー**：複数のファイル・フォルダを選んで、改行区切りでまとめてコピーできます。
+- **PC・スマホ両対応**：Clipboard API と自動フォールバックの二重化により、モバイルブラウザでも安定してコピーできます。
+- **即時通知＆言語切替**：コピー完了をトーストで即時通知し、個人設定から日本語（デフォルト）／英語を切り替えられます。</description>
+    <version>0.2.0</version>
+    <licence>AGPL-3.0-or-later</licence>
+    <author mail="info@uttii.com" homepage="https://uttii.com/">uttii.com</author>
+    <website>https://app-nextcloud.uttii.com/</website>
+    <repository type="git">https://github.com/uttii-com/uttii-pathcopy.git</repository>
+    <bugs>https://github.com/uttii-com/uttii-pathcopy/issues</bugs>
+    <screenshot>https://raw.githubusercontent.com/uttii-com/uttii-pathcopy/main/screenshots/main.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/uttii-com/uttii-pathcopy/main/screenshots/ui.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/uttii-com/uttii-pathcopy/main/screenshots/settings.png</screenshot>
+    <namespace>PathCopy</namespace>
+    <category>files</category>
+    <dependencies>
+        <nextcloud min-version="28" max-version="35" />
+    </dependencies>
+    <settings>
+        <personal>OCA\PathCopy\Settings\PersonalSettings</personal>
+        <personal-section>OCA\PathCopy\Settings\PersonalSection</personal-section>
+    </settings>
+</info>
